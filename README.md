@@ -1,94 +1,77 @@
-## Word-to-PDF MCP Server (Puch AI)
+# Puch MCP Server
 
-This repository contains a minimal MCP server for Puch AI (WhatsApp) with two tools:
+This project is a FastMCP server that provides document processing and validation tools.
 
-- validate: returns your WhatsApp number for server verification (no plus sign)
-- convert_word_to_pdf: converts a .docx file (local or URL) to PDF and returns it as base64
+## Setup and Run (Windows)
 
-### Requirements
+### Prerequisites
 
-- Python 3.11+
-- Internet access if converting from a URL
-- Pandoc (pypandoc will auto-download); for PDF generation, a LaTeX engine may be required (e.g., MiKTeX on Windows)
+- Python 3.10+ installed
+- Git installed
 
-### Install
+### 1. Clone the Repository
 
-```powershell
+```bash
+git clone <repository-url>
+cd word-to-pdf-mcp
+```
+
+### 2. Create and Activate Virtual Environment
+
+```bash
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+.venv\Scripts\activate.bat
 ```
 
-### Configure
+### 3. Install Dependencies
 
-Create a `.env` file in the project root:
-
-```env
-AUTH_TOKEN=your_secret_token_here
-MY_NUMBER=919876543210
+```bash
+.venv\Scripts\pip.exe install -r requirements.txt
 ```
 
-Notes:
+### 4. Configure Environment Variables
 
-- `MY_NUMBER` must be in `{country_code}{number}` format without "+".
-- Keep `AUTH_TOKEN` secret; Puch will use it as a Bearer token.
-
-### Run the server
-
-```powershell
-uvicorn main:app --host 0.0.0.0 --port 8086
-```
-
-Endpoint: `http://localhost:8086/mcp/`
-
-### Expose with ngrok (required by Puch)
-
-```powershell
-ngrok http 8086
-```
-
-### Connect from WhatsApp (Puch AI)
-
-In your Puch chat:
+Create a `.env` file in the project root and add the following:
 
 ```
-/mcp connect https://<your-ngrok-domain>/mcp <your_bearer_token>
-/mcp call validate
-/mcp call convert_word_to_pdf {"docx_source": "https://example.com/sample.docx", "output_path": "output.pdf"}
+AUTH_TOKEN="your-secret-token"
+MY_NUMBER="your-phone-number"
 ```
 
-### Tool: convert_word_to_pdf
+### 5. Running the Server
 
-Inputs:
+**NOTE:** The server is pre-configured to run on port 8086. If you need to run it manually, use the following command:
 
-- `docx_source` (str): Local path or URL to a .docx file
-- `output_path` (str): Path where the PDF will be saved
-
-Success Response:
-
-```
-{
-   "success": true,
-   "message": "Conversion successful",
-   "pdf_path": "<absolute path>",
-   "pdf_base64": "<base64 string>"
-}
+```bash
+.venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8086
 ```
 
-Error Response:
+## Testing the Tools
 
+You can test the tools by sending HTTP requests to the running server on port 8086.
+
+### Validate Tool
+
+```bash
+curl -X POST -H "Authorization: Bearer your-secret-token" -H "Content-Type: application/json" -d '{"tool":"validate"}' http://localhost:8086/mcp/
 ```
-{ "success": false, "error": "<message>" }
+
+### Document Tools
+
+**Upload a document:**
+
+```bash
+curl -X POST -H "Authorization: Bearer your-secret-token" -H "Content-Type: application/json" -d '{"tool":"upload", "doc_id":"doc1", "content":"This is a test document."}' http://localhost:8086/mcp/
 ```
 
-### Troubleshooting
+**Process a document:**
 
-- PDF build fails: install a LaTeX engine (e.g., MiKTeX on Windows) so Pandoc can generate PDFs.
-- `MY_NUMBER` must not include "+" (e.g., use `919876543210`).
-- Ensure venv is active and `pip install -r requirements.txt` ran without errors.
-- For Windows paths, prefer absolute paths in `output_path`.
+```bash
+curl -X POST -H "Authorization: Bearer your-secret-token" -H "Content-Type: application/json" -d '{"tool":"process", "doc_id":"doc1"}' http://localhost:8086/mcp/
+```
 
-### Repo hygiene
+**Search for a document:**
 
-- `.gitignore` excludes bytecode, venvs, `.env`, and IDE files.
-- You can safely delete any `__pycache__` folders; they’ll be ignored.
+```bash
+curl -X POST -H "Authorization: Bearer your-secret-token" -H "Content-Type: application/json" -d '{"tool":"search", "query":"test"}' http://localhost:8086/mcp/
+```
