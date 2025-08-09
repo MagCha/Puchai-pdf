@@ -1,77 +1,149 @@
-# Puch MCP Server
+# Puch AI MCP Server
 
-This project is a FastMCP server that provides document processing and validation tools.
+A Model Context Protocol (MCP) server built with FastMCP that provides document processing and validation tools for Puch AI integration.
 
-## Setup and Run (Windows)
+## Features
 
-### Prerequisites
+- **Document Processing**: Read and process documents sent by users through MCP tools
+- **Server Validation**: Validate server connectivity and retrieve owner information
+- **Token-based Authentication**: Secure authentication using static token verification
+- **Phone Number Integration**: Owner phone number validation and retrieval
+- **FastMCP Integration**: Built on FastMCP framework for efficient MCP operations
+- **ASGI Web Server**: Runs as a web service with uvicorn
 
-- Python 3.10+ installed
-- Git installed
+## Prerequisites
 
-### 1. Clone the Repository
+- Python 3.7+
+- pip package manager
+- Virtual environment (recommended)
 
+## Installation
+
+1. Clone this repository:
 ```bash
-git clone <repository-url>
-cd word-to-pdf-mcp
+git clone https://github.com/MagCha/Puchai-pdf.git
+cd Puchai-pdf
 ```
 
-### 2. Create and Activate Virtual Environment
-
+2. Create and activate a virtual environment:
 ```bash
 python -m venv .venv
-.venv\Scripts\activate.bat
+# On Windows:
+.venv\Scripts\activate
+# On macOS/Linux:
+source .venv/bin/activate
 ```
 
-### 3. Install Dependencies
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+4. Set up environment variables:
+   - Copy `.env.example` to `.env`
+   - Update the values with your credentials:
+
+```properties
+AUTH_TOKEN=your_auth_token_here
+MY_NUMBER=your_phone_number_here
+```
+
+## Configuration
+
+Create a `.env` file in the root directory with the following variables:
+
+- `AUTH_TOKEN`: Your authentication token for MCP client access
+- `MY_NUMBER`: Your phone number (used for validation and identification)
+
+## Usage
+
+### Starting the MCP Server
 
 ```bash
-.venv\Scripts\pip.exe install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8086
 ```
 
-### 4. Configure Environment Variables
+The server will be available at: `http://0.0.0.0:8086/mcp/`
 
-Create a `.env` file in the project root and add the following:
+### Available MCP Tools
+
+1. **Validate Tool** (`tools.validate`)
+   - Validates server connectivity
+   - Returns owner's phone number
+   - Used for server health checks
+
+2. **Document Tool** (`tools.document`)
+   - Processes documents sent by users
+   - Enables Puch AI to read document content
+   - Handles various document formats
+
+### Authentication
+
+The server uses token-based authentication:
+- Clients must provide the `AUTH_TOKEN` to access MCP tools
+- Token verification is handled by `StaticTokenVerifier`
+- Authorized clients get `read` and `write` scopes
+
+## Project Structure
 
 ```
-AUTH_TOKEN="your-secret-token"
-MY_NUMBER="your-phone-number"
+├── main.py            # ASGI server entrypoint
+├── tools/             # MCP tool implementations
+│   ├── validate.py    # Server validation tool
+│   └── document.py    # Document processing tool
+├── .env               # Environment variables (not in git)
+├── .env.example       # Environment variables template
+├── requirements.txt   # Python dependencies
+├── pyproject.toml     # Project configuration
+├── .gitignore         # Git ignore rules
+└── README.md          # This file
 ```
 
-### 5. Running the Server
+## Development
 
-**NOTE:** The server is pre-configured to run on port 8086. If you need to run it manually, use the following command:
-
+### Running in Development
 ```bash
-.venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8086
+uvicorn main:app --host 0.0.0.0 --port 8086 --reload
 ```
 
-## Testing the Tools
+### Adding New Tools
+1. Create a new tool file in the `tools/` directory
+2. Implement the `register(mcp: FastMCP)` function
+3. Import and register the tool in `main.py`
 
-You can test the tools by sending HTTP requests to the running server on port 8086.
+## Security Notes
 
-### Validate Tool
+- Never commit your `.env` file to version control
+- Keep your `AUTH_TOKEN` secure and don't share it
+- The server validates all incoming requests with token authentication
+- Phone numbers are stored without the '+' prefix for consistency
 
-```bash
-curl -X POST -H "Authorization: Bearer your-secret-token" -H "Content-Type: application/json" -d '{"tool":"validate"}' http://localhost:8086/mcp/
-```
+## API Endpoint
 
-### Document Tools
+- **MCP Endpoint**: `http://0.0.0.0:8086/mcp/`
+- **Protocol**: Streamable HTTP MCP
+- **Authentication**: Bearer token required
 
-**Upload a document:**
+## Contributing
 
-```bash
-curl -X POST -H "Authorization: Bearer your-secret-token" -H "Content-Type: application/json" -d '{"tool":"upload", "doc_id":"doc1", "content":"This is a test document."}' http://localhost:8086/mcp/
-```
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature-name`
+3. Make your changes and commit them: `git commit -m 'Add feature'`
+4. Push to the branch: `git push origin feature-name`
+5. Submit a pull request
 
-**Process a document:**
+## License
 
-```bash
-curl -X POST -H "Authorization: Bearer your-secret-token" -H "Content-Type: application/json" -d '{"tool":"process", "doc_id":"doc1"}' http://localhost:8086/mcp/
-```
+This project is licensed under the MIT License.
 
-**Search for a document:**
+## Support
 
-```bash
-curl -X POST -H "Authorization: Bearer your-secret-token" -H "Content-Type: application/json" -d '{"tool":"search", "query":"test"}' http://localhost:8086/mcp/
-```
+For issues and questions, please open an issue in the GitHub repository.
+
+## Technical Details
+
+- **Framework**: FastMCP
+- **Server**: uvicorn (ASGI)
+- **Authentication**: StaticTokenVerifier
+- **Language**: Python 3.7+
+- **Protocol**: Model Context Protocol (MCP)
