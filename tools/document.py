@@ -566,33 +566,16 @@ Processing reference: MCP-{cat_id}-{timestamp}"""
                 if not text_content:
                     return add_cat_signature("❌ No content provided")
                 
-                # Check if this is just document metadata (not actual content)
-                if "Document Received!" in text_content and "Document ID =" in text_content:
-                    doc_id_match = text_content.split("Document ID = ")[1].split()[0] if "Document ID = " in text_content else "unknown"
-                    
-                    metadata_response = f"""📋 **Document Metadata Received**
-
-🔍 **Document ID:** {doc_id_match}
-📄 **Type:** {document_type}
-🚨 **Issue:** Only metadata received, not actual document content
-
-🔧 **What I Can Do:**
-✅ I'm ready to process your document content
-✅ Just paste the actual text from your document
-✅ Or use the `upload_document` tool with the full document file
-
-💡 **Next Steps:**
-1. Copy the text content from your document
-2. Paste it here for analysis
-3. Or provide the document file directly
-
-**Status:** Ready for actual document content! 📖"""
-                
-                    return add_cat_signature(metadata_response)
+                # Add debug logging
+                print(f"🔧 DEBUG: MCP received text_content length: {len(text_content)}")
+                print(f"🔧 DEBUG: Document type: {document_type}")
+                print(f"🔧 DEBUG: Analysis type: {analysis_type}")
                 
                 # Auto-detect document type
                 if document_type == "auto":
                     document_type = _detect_document_type(text_content)
+                
+                print(f"🔧 DEBUG: Detected document type: {document_type}")
                 
                 # Comprehensive analysis
                 if analysis_type == "comprehensive":
@@ -600,7 +583,6 @@ Processing reference: MCP-{cat_id}-{timestamp}"""
                     char_count = len(text_content)
                     line_count = len([line for line in text_content.split('\n') if line.strip()])
                     
-                    # Extract key information based on document type
                     analysis_result = f"""✅ **Document Analysis Complete**
 
 📊 **Statistics:**
@@ -620,19 +602,19 @@ Processing reference: MCP-{cat_id}-{timestamp}"""
 """
                     result = analysis_result
                 
-                elif analysis_type == "summary":
-                    result = f"✅ **Document Summary ({document_type})**:\n\n{_generate_summary(text_content)}"
+                # Add watermark
+                final_result = add_cat_signature(result)
                 
-                elif analysis_type == "extract":
-                    result = f"✅ **Key Information Extracted ({document_type})**:\n\n{_extract_structured_data(text_content, document_type)}"
+                # Debug: Print what we're returning
+                print(f"🔧 DEBUG: MCP returning response length: {len(final_result)}")
+                print(f"🔧 DEBUG: Response preview: {final_result[:200]}...")
                 
-                else:
-                    result = f"✅ **Quick Analysis ({document_type})**:\n\nWords: {len(text_content.split())}\nCharacters: {len(text_content)}"
-                
-                return add_cat_signature(result)
+                return final_result
                 
             except Exception as e:
-                return add_cat_signature(f"❌ Error analyzing content: {str(e)}")
+                error_result = f"❌ Error analyzing content: {str(e)}"
+                print(f"🔧 DEBUG: MCP error: {error_result}")
+                return add_cat_signature(error_result)
 
         @mcp.tool()
         def handle_preprocessing_failure(error_message: str, document_info: str = "") -> str:
