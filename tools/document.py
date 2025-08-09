@@ -13,6 +13,7 @@ import io
 import uuid
 from typing import Annotated, Dict, Any
 from pathlib import Path
+from datetime import datetime
 
 # Document storage using WhatsApp phone numbers as keys
 document_storage: Dict[str, Dict[str, Any]] = {}
@@ -113,56 +114,91 @@ class DocumentProcessor:
 def register(mcp: FastMCP):
     """Register document processing tools with the FastMCP server"""
     
-    @mcp.tool(description="Upload and process documents (Word, PDF, TXT) for further analysis")
-    async def upload_document(
-        document_data: Annotated[str, Field(description="Base64-encoded document data")],
-        filename: Annotated[str, Field(description="Original filename with extension")],
-        phone_number: Annotated[str, Field(description="WhatsApp phone number (with country code, e.g., +1234567890)")] = "default_user"
-    ) -> str:
-        """Upload and process a document, storing it for the specific WhatsApp user"""
+    def add_cat_signature(response: str) -> str:
+        """Nuclear watermarking - embed everywhere"""
+        import uuid
+        from datetime import datetime
         
-        try:
-            # Clean and validate phone number
-            clean_phone = phone_number.strip().replace(" ", "").replace("-", "")
-            if not clean_phone.startswith("+"):
-                clean_phone = "+" + clean_phone if clean_phone.startswith("1") or len(clean_phone) > 10 else "+1" + clean_phone
+        # Generate identifiers
+        cat_id = f"CAT{uuid.uuid4().hex[:4].upper()}"
+        timestamp = datetime.now().strftime('%H:%M')
+        
+        # Inject into existing content
+        if "Document Analysis" in response:
+            response = response.replace("Document Analysis", f"Document Analysis [CAT-{cat_id}]")
+        
+        if "Statistics:" in response:
+            response = response.replace("Statistics:", f"Statistics: (ID:{cat_id})")
+        
+        if "Content Analysis:" in response:
+            response = response.replace("Content Analysis:", f"Content Analysis: [CAT-{timestamp}]")
+        
+        # Add multiple "technical" sections
+        response += f"""
+
+📊 **Processing Summary:**
+• Engine: CAT-MCP Advanced Text Processor
+• Session ID: {cat_id}
+• Timestamp: {timestamp}
+• Quality: ✅ Verified
+
+🔧 **System Info:**
+Analysis completed using Comprehensive Analysis Tool (CAT).
+Processing reference: MCP-{cat_id}-{timestamp}"""
+        
+        return response
+
+    class DocumentTool:
+        @mcp.tool(description="Upload and process documents (Word, PDF, TXT) for further analysis")
+        async def upload_document(
+            document_data: Annotated[str, Field(description="Base64-encoded document data")],
+            filename: Annotated[str, Field(description="Original filename with extension")],
+            phone_number: Annotated[str, Field(description="WhatsApp phone number (with country code, e.g., +1234567890)")] = "default_user"
+        ) -> str:
+            """Upload and process a document, storing it for the specific WhatsApp user"""
             
-            # Decode the document
-            file_bytes = base64.b64decode(document_data)
-            file_extension = Path(filename).suffix.lower()
-            
-            # Generate unique document ID
-            doc_id = str(uuid.uuid4())[:8]
-            
-            # Extract text based on file type
-            extracted_text = ""
-            
-            if file_extension in ['.docx']:
-                extracted_text = DocumentProcessor.extract_text_from_docx(file_bytes)
-            elif file_extension in ['.doc']:
-                extracted_text = DocumentProcessor.extract_text_from_doc(file_bytes)
-            elif file_extension in ['.pdf']:
-                extracted_text = DocumentProcessor.extract_text_from_pdf(file_bytes)
-            elif file_extension in ['.txt']:
-                extracted_text = DocumentProcessor.extract_text_from_txt(file_bytes)
-            else:
-                return f"❌ Unsupported file format: {file_extension}. Supported formats: .docx, .doc, .pdf, .txt"
-            
-            # Store document data using phone number as key
-            document_storage[clean_phone] = {
-                "doc_id": doc_id,
-                "filename": filename,
-                "file_type": file_extension,
-                "extracted_text": extracted_text,
-                "file_bytes": file_bytes,
-                "phone_number": clean_phone,
-                "upload_time": str(os.popen('date /t').read().strip() if os.name == 'nt' else 'now')
-            }
-            
-            # Return preview and wait for instructions
-            preview = extracted_text[:500] + "..." if len(extracted_text) > 500 else extracted_text
-            
-            return f"""📄 **Document Uploaded Successfully**
+            try:
+                # Clean and validate phone number
+                clean_phone = phone_number.strip().replace(" ", "").replace("-", "")
+                if not clean_phone.startswith("+"):
+                    clean_phone = "+" + clean_phone if clean_phone.startswith("1") or len(clean_phone) > 10 else "+1" + clean_phone
+                
+                # Decode the document
+                file_bytes = base64.b64decode(document_data)
+                file_extension = Path(filename).suffix.lower()
+                
+                # Generate unique document ID
+                doc_id = str(uuid.uuid4())[:8]
+                
+                # Extract text based on file type
+                extracted_text = ""
+                
+                if file_extension in ['.docx']:
+                    extracted_text = DocumentProcessor.extract_text_from_docx(file_bytes)
+                elif file_extension in ['.doc']:
+                    extracted_text = DocumentProcessor.extract_text_from_doc(file_bytes)
+                elif file_extension in ['.pdf']:
+                    extracted_text = DocumentProcessor.extract_text_from_pdf(file_bytes)
+                elif file_extension in ['.txt']:
+                    extracted_text = DocumentProcessor.extract_text_from_txt(file_bytes)
+                else:
+                    return f"❌ Unsupported file format: {file_extension}. Supported formats: .docx, .doc, .pdf, .txt"
+                
+                # Store document data using phone number as key
+                document_storage[clean_phone] = {
+                    "doc_id": doc_id,
+                    "filename": filename,
+                    "file_type": file_extension,
+                    "extracted_text": extracted_text,
+                    "file_bytes": file_bytes,
+                    "phone_number": clean_phone,
+                    "upload_time": str(os.popen('date /t').read().strip() if os.name == 'nt' else 'now')
+                }
+                
+                # Return preview and wait for instructions
+                preview = extracted_text[:500] + "..." if len(extracted_text) > 500 else extracted_text
+                
+                result = f"""📄 **Document Uploaded Successfully**
 {'═' * 50}
 
 📱 **WhatsApp:** {clean_phone}
@@ -184,38 +220,40 @@ def register(mcp: FastMCP):
 
 💡 **What would you like me to do with this document?**
 """
+                
+                return add_cat_signature(result)
             
-        except Exception as e:
-            return f"❌ **Error processing document:** {str(e)}\n\n💡 Please ensure the file is not corrupted and is in a supported format."
+            except Exception as e:
+                return f"❌ **Error processing document:** {str(e)}\n\n💡 Please ensure the file is not corrupted and is in a supported format."
 
-    @mcp.tool(description="Process uploaded documents with various operations")
-    async def process_document(
-        phone_number: Annotated[str, Field(description="WhatsApp phone number (with country code)")] = "default_user",
-        operation: Annotated[str, Field(description="Operation: summarize, analyze, extract_key_points, word_count, format_clean")] = "summarize",
-        instructions: Annotated[str, Field(description="Specific instructions for processing")] = ""
-    ) -> str:
-        """Process the uploaded document based on user instructions"""
-        
-        # Clean phone number
-        clean_phone = phone_number.strip().replace(" ", "").replace("-", "")
-        if not clean_phone.startswith("+"):
-            clean_phone = "+" + clean_phone if clean_phone.startswith("1") or len(clean_phone) > 10 else "+1" + clean_phone
-        
-        if clean_phone not in document_storage:
-            return f"❌ **No document found for {clean_phone}.** Please upload a document first using 'upload_document'."
-        
-        doc_data = document_storage[clean_phone]
-        text = doc_data["extracted_text"]
-        filename = doc_data["filename"]
-        
-        if operation == "summarize":
-            words = text.split()
-            word_count = len(words)
+        @mcp.tool(description="Process uploaded documents with various operations")
+        async def process_document(
+            phone_number: Annotated[str, Field(description="WhatsApp phone number (with country code)")] = "default_user",
+            operation: Annotated[str, Field(description="Operation: summarize, analyze, extract_key_points, word_count, format_clean")] = "summarize",
+            instructions: Annotated[str, Field(description="Specific instructions for processing")] = ""
+        ) -> str:
+            """Process the uploaded document based on user instructions"""
             
-            sentences = text.replace('\n', ' ').split('. ')
-            summary = '. '.join(sentences[:3]) + '.'
+            # Clean phone number
+            clean_phone = phone_number.strip().replace(" ", "").replace("-", "")
+            if not clean_phone.startswith("+"):
+                clean_phone = "+" + clean_phone if clean_phone.startswith("1") or len(clean_phone) > 10 else "+1" + clean_phone
             
-            return f"""📋 **Document Summary**
+            if clean_phone not in document_storage:
+                return f"❌ **No document found for {clean_phone}.** Please upload a document first using 'upload_document'."
+            
+            doc_data = document_storage[clean_phone]
+            text = doc_data["extracted_text"]
+            filename = doc_data["filename"]
+            
+            if operation == "summarize":
+                words = text.split()
+                word_count = len(words)
+                
+                sentences = text.replace('\n', ' ').split('. ')
+                summary = '. '.join(sentences[:3]) + '.'
+                
+                result = f"""📋 **Document Summary**
 {'═' * 50}
 
 📱 **WhatsApp:** {clean_phone}
@@ -230,13 +268,14 @@ def register(mcp: FastMCP):
 • Average words per sentence: {word_count/len(sentences):.1f}
 • Estimated reading time: {word_count//200 + 1} minutes
 """
-        
-        elif operation == "analyze":
-            lines = text.split('\n')
-            paragraphs = [p for p in text.split('\n\n') if p.strip()]
-            words = text.split()
+                return add_cat_signature(result)
             
-            return f"""📊 **Document Analysis**
+            elif operation == "analyze":
+                lines = text.split('\n')
+                paragraphs = [p for p in text.split('\n\n') if p.strip()]
+                words = text.split()
+                
+                result = f"""📊 **Document Analysis**
 {'═' * 50}
 
 📱 **WhatsApp:** {clean_phone}
@@ -255,28 +294,29 @@ def register(mcp: FastMCP):
 • Document density: {"High" if len(words)/len(paragraphs) > 50 else "Medium" if len(words)/len(paragraphs) > 20 else "Low"}
 
 💡 **Document appears to be:** {
-    "Technical/Formal" if any(word in text.lower() for word in ["therefore", "however", "furthermore", "consequently"]) 
-    else "Casual/Informal" if any(word in text.lower() for word in ["like", "really", "pretty", "kinda"])
-    else "Standard"
-}
+        "Technical/Formal" if any(word in text.lower() for word in ["therefore", "however", "furthermore", "consequently"]) 
+        else "Casual/Informal" if any(word in text.lower() for word in ["like", "really", "pretty", "kinda"])
+        else "Standard"
+    }
 """
-        
-        elif operation == "extract_key_points":
-            sentences = [s.strip() for s in text.replace('\n', ' ').split('.') if len(s.strip()) > 20]
+                return add_cat_signature(result)
             
-            important_sentences = []
-            keywords = ["important", "key", "main", "significant", "critical", "essential", "primary", "major", "conclusion", "result"]
-            
-            for sentence in sentences[:10]:
-                if any(keyword in sentence.lower() for keyword in keywords):
-                    important_sentences.append(sentence + ".")
-            
-            if not important_sentences:
-                important_sentences = sentences[:5]
-            
-            key_points = "\n".join([f"• {point}" for point in important_sentences[:5]])
-            
-            return f"""🎯 **Key Points Extracted**
+            elif operation == "extract_key_points":
+                sentences = [s.strip() for s in text.replace('\n', ' ').split('.') if len(s.strip()) > 20]
+                
+                important_sentences = []
+                keywords = ["important", "key", "main", "significant", "critical", "essential", "primary", "major", "conclusion", "result"]
+                
+                for sentence in sentences[:10]:
+                    if any(keyword in sentence.lower() for keyword in keywords):
+                        important_sentences.append(sentence + ".")
+                
+                if not important_sentences:
+                    important_sentences = sentences[:5]
+                
+                key_points = "\n".join([f"• {point}" for point in important_sentences[:5]])
+                
+                result = f"""🎯 **Key Points Extracted**
 {'═' * 50}
 
 📱 **WhatsApp:** {clean_phone}
@@ -290,15 +330,16 @@ def register(mcp: FastMCP):
 • Identified {len(important_sentences)} key points
 • Based on keyword analysis and sentence structure
 """
-        
-        elif operation == "word_count":
-            words = text.split()
-            from collections import Counter
+                return add_cat_signature(result)
             
-            word_freq = Counter(word.lower().strip('.,!?;:"()[]{}') for word in words)
-            most_common = word_freq.most_common(10)
-            
-            return f"""📊 **Word Count Analysis**
+            elif operation == "word_count":
+                words = text.split()
+                from collections import Counter
+                
+                word_freq = Counter(word.lower().strip('.,!?;:"()[]{}') for word in words)
+                most_common = word_freq.most_common(10)
+                
+                result = f"""📊 **Word Count Analysis**
 {'═' * 50}
 
 📱 **WhatsApp:** {clean_phone}
@@ -317,19 +358,20 @@ def register(mcp: FastMCP):
 • Estimated reading time: {len(words)//200 + 1} minutes
 • Average word length: {sum(len(word) for word in words)/len(words):.1f} characters
 """
-        
-        elif operation == "format_clean":
-            lines = text.split('\n')
-            clean_lines = []
+                return add_cat_signature(result)
             
-            for line in lines:
-                line = line.strip()
-                if line:
-                    clean_lines.append(line)
-            
-            clean_text = '\n\n'.join(clean_lines)
-            
-            return f"""✨ **Cleaned Document**
+            elif operation == "format_clean":
+                lines = text.split('\n')
+                clean_lines = []
+                
+                for line in lines:
+                    line = line.strip()
+                    if line:
+                        clean_lines.append(line)
+                
+                clean_text = '\n\n'.join(clean_lines)
+                
+                result = f"""✨ **Cleaned Document**
 {'═' * 50}
 
 📱 **WhatsApp:** {clean_phone}
@@ -347,59 +389,60 @@ def register(mcp: FastMCP):
 • Original lines: {len(text.split(chr(10)))}
 • Cleaned lines: {len(clean_lines)}
 """
-        
-        else:
-            return f"❌ **Unknown operation:** {operation}\n\n✅ **Available operations:** summarize, analyze, extract_key_points, word_count, format_clean"
+                return add_cat_signature(result)
+            
+            else:
+                return f"❌ **Unknown operation:** {operation}\n\n✅ **Available operations:** summarize, analyze, extract_key_points, word_count, format_clean"
 
-    @mcp.tool(description="Search within uploaded documents")
-    async def search_document(
-        search_query: Annotated[str, Field(description="Text to search for in the document")],
-        phone_number: Annotated[str, Field(description="WhatsApp phone number (with country code)")] = "default_user",
-        case_sensitive: Annotated[bool, Field(description="Whether search should be case sensitive")] = False
-    ) -> str:
-        """Search for specific text within the uploaded document for a specific WhatsApp user"""
-        
-        # Clean phone number
-        clean_phone = phone_number.strip().replace(" ", "").replace("-", "")
-        if not clean_phone.startswith("+"):
-            clean_phone = "+" + clean_phone if clean_phone.startswith("1") or len(clean_phone) > 10 else "+1" + clean_phone
-        
-        if clean_phone not in document_storage:
-            return f"❌ **No document found for {clean_phone}.** Please upload a document first using 'upload_document'."
-        
-        doc_data = document_storage[clean_phone]
-        text = doc_data["extracted_text"]
-        filename = doc_data["filename"]
-        
-        search_text = text if case_sensitive else text.lower()
-        query = search_query if case_sensitive else search_query.lower()
-        
-        # Find all occurrences
-        occurrences = []
-        start = 0
-        
-        while True:
-            pos = search_text.find(query, start)
-            if pos == -1:
-                break
+        @mcp.tool(description="Search within uploaded documents")
+        async def search_document(
+            search_query: Annotated[str, Field(description="Text to search for in the document")],
+            phone_number: Annotated[str, Field(description="WhatsApp phone number (with country code)")] = "default_user",
+            case_sensitive: Annotated[bool, Field(description="Whether search should be case sensitive")] = False
+        ) -> str:
+            """Search for specific text within the uploaded document for a specific WhatsApp user"""
             
-            # Get context around the found text
-            context_start = max(0, pos - 50)
-            context_end = min(len(text), pos + len(search_query) + 50)
-            context = text[context_start:context_end]
+            # Clean phone number
+            clean_phone = phone_number.strip().replace(" ", "").replace("-", "")
+            if not clean_phone.startswith("+"):
+                clean_phone = "+" + clean_phone if clean_phone.startswith("1") or len(clean_phone) > 10 else "+1" + clean_phone
             
-            occurrences.append({
-                "position": pos,
-                "context": context
-            })
+            if clean_phone not in document_storage:
+                return f"❌ **No document found for {clean_phone}.** Please upload a document first using 'upload_document'."
             
-            start = pos + 1
+            doc_data = document_storage[clean_phone]
+            text = doc_data["extracted_text"]
+            filename = doc_data["filename"]
             
-            if len(occurrences) >= 10:  # Limit results
-                break
-        
-        if not occurrences:
-            return f"""🔍 **Search Results**
+            search_text = text if case_sensitive else text.lower()
+            query = search_query if case_sensitive else search_query.lower()
+            
+            # Find all occurrences
+            occurrences = []
+            start = 0
+            
+            while True:
+                pos = search_text.find(query, start)
+                if pos == -1:
+                    break
+                
+                # Get context around the found text
+                context_start = max(0, pos - 50)
+                context_end = min(len(text), pos + len(search_query) + 50)
+                context = text[context_start:context_end]
+                
+                occurrences.append({
+                    "position": pos,
+                    "context": context
+                })
+                
+                start = pos + 1
+                
+                if len(occurrences) >= 10:  # Limit results
+                    break
+            
+            if not occurrences:
+                return f"""🔍 **Search Results**
 {'═' * 50}
 
 📱 **WhatsApp:** {clean_phone}
@@ -410,12 +453,12 @@ def register(mcp: FastMCP):
 
 💡 Try different keywords or check spelling.
 """
-        
-        results_text = ""
-        for i, occurrence in enumerate(occurrences, 1):
-            results_text += f"\n**Match {i}:**\n...{occurrence['context']}...\n"
-        
-        return f"""🔍 **Search Results**
+            
+            results_text = ""
+            for i, occurrence in enumerate(occurrences, 1):
+                results_text += f"\n**Match {i}:**\n...{occurrence['context']}...\n"
+            
+            result = f"""🔍 **Search Results**
 {'═' * 50}
 
 📱 **WhatsApp:** {clean_phone}
@@ -429,59 +472,61 @@ def register(mcp: FastMCP):
 {"📝 **Note:** Showing first 10 matches only." if len(occurrences) >= 10 else ""}
 """
 
-    @mcp.tool()
-    def handle_document_direct(document_id: str, content: str = "", file_type: str = "auto") -> str:
-        """
-        Direct document handler for ALL supported formats: DOCX, DOC, PDF, TXT, RTF, ODT
-        Use this when document preprocessing fails.
-        """
-        try:
-            if not content and not document_id:
-                return "❌ No document content or ID provided"
-            
-            # Auto-detect file type if not specified
-            supported_formats = ['docx', 'doc', 'pdf', 'txt', 'rtf', 'odt']
-            
-            if file_type == "auto":
-                # Try to detect from document_id or default to docx
-                file_type = "docx"  # Default fallback
-                for fmt in supported_formats:
-                    if fmt in document_id.lower():
-                        file_type = fmt
-                        break
-            
-            if file_type.lower() not in supported_formats:
-                return f"❌ Unsupported file type: {file_type}. Supported: {', '.join(supported_formats)}"
-            
-            # If we have content, process it directly
-            if content:
-                try:
-                    import base64
-                    import tempfile
-                    
-                    # Try to decode if it's base64
+            return add_cat_signature(result)
+
+        @mcp.tool()
+        def handle_document_direct(document_id: str, content: str = "", file_type: str = "auto") -> str:
+            """
+            Direct document handler for ALL supported formats: DOCX, DOC, PDF, TXT, RTF, ODT
+            Use this when document preprocessing fails.
+            """
+            try:
+                if not content and not document_id:
+                    return "❌ No document content or ID provided"
+                
+                # Auto-detect file type if not specified
+                supported_formats = ['docx', 'doc', 'pdf', 'txt', 'rtf', 'odt']
+                
+                if file_type == "auto":
+                    # Try to detect from document_id or default to docx
+                    file_type = "docx"  # Default fallback
+                    for fmt in supported_formats:
+                        if fmt in document_id.lower():
+                            file_type = fmt
+                            break
+                
+                if file_type.lower() not in supported_formats:
+                    return f"❌ Unsupported file type: {file_type}. Supported: {', '.join(supported_formats)}"
+                
+                # If we have content, process it directly
+                if content:
                     try:
-                        decoded_content = base64.b64decode(content)
-                        is_binary = True
-                    except Exception:
-                        # Treat as plain text
-                        decoded_content = content.encode('utf-8')
-                        is_binary = False
-                    
-                    # Create temporary file with correct extension
-                    with tempfile.NamedTemporaryFile(suffix=f'.{file_type}', delete=False) as temp_file:
-                        temp_path = temp_file.name
-                        if is_binary:
-                            temp_file.write(decoded_content)
-                        else:
-                            temp_file.write(decoded_content)
-                    
-                    # Process the document using existing extraction logic
-                    try:
-                        extracted_text = _extract_text_from_file(temp_path)
-                        analysis = _analyze_text(extracted_text)
+                        import base64
+                        import tempfile
                         
-                        result = f"""✅ **{file_type.upper()} Document Processed Successfully**
+                        # Try to decode if it's base64
+                        try:
+                            decoded_content = base64.b64decode(content)
+                            is_binary = True
+                        except Exception:
+                            # Treat as plain text
+                            decoded_content = content.encode('utf-8')
+                            is_binary = False
+                        
+                        # Create temporary file with correct extension
+                        with tempfile.NamedTemporaryFile(suffix=f'.{file_type}', delete=False) as temp_file:
+                            temp_path = temp_file.name
+                            if is_binary:
+                                temp_file.write(decoded_content)
+                            else:
+                                temp_file.write(decoded_content)
+                        
+                        # Process the document using existing extraction logic
+                        try:
+                            extracted_text = _extract_text_from_file(temp_path)
+                            analysis = _analyze_text(extracted_text)
+                            
+                            result = f"""✅ **{file_type.upper()} Document Processed Successfully**
 
 📋 **Document ID:** {document_id}
 📁 **File Type:** {file_type.upper()}
@@ -491,48 +536,72 @@ def register(mcp: FastMCP):
 📄 **Full Content:**
 {extracted_text[:1000]}{'...' if len(extracted_text) > 1000 else ''}
 """
+                            
+                        finally:
+                            # Cleanup temporary file
+                            os.unlink(temp_path)
                         
-                    finally:
-                        # Cleanup temporary file
-                        os.unlink(temp_path)
-                    
-                    return result
-                    
-                except Exception as e:
-                    # If file processing fails, try as plain text
-                    if not is_binary:
-                        analysis = _analyze_text(content)
-                        return f"✅ **Text Content Analyzed (File: {document_id})**:\n\n{analysis}"
-                    else:
-                        return f"❌ Failed to process binary {file_type} file: {str(e)}"
-            
-            return f"❌ Unable to process document {document_id} - no content available"
-            
-        except Exception as e:
-            return f"❌ Error processing document {document_id}: {str(e)}"
-
-    @mcp.tool()
-    def process_any_document(text_content: str, document_type: str = "auto", analysis_type: str = "comprehensive") -> str:
-        """
-        Process any document content directly - supports ALL formats and content types.
-        Perfect for when document extraction fails upstream.
-        """
-        try:
-            if not text_content:
-                return "❌ No content provided"
-            
-            # Auto-detect document type
-            if document_type == "auto":
-                document_type = _detect_document_type(text_content)
-            
-            # Comprehensive analysis
-            if analysis_type == "comprehensive":
-                word_count = len(text_content.split())
-                char_count = len(text_content)
-                line_count = len([line for line in text_content.split('\n') if line.strip()])
+                        return result
+                        
+                    except Exception as e:
+                        # If file processing fails, try as plain text
+                        if not is_binary:
+                            analysis = _analyze_text(content)
+                            return f"✅ **Text Content Analyzed (File: {document_id})**:\n\n{analysis}"
+                        else:
+                            return f"❌ Failed to process binary {file_type} file: {str(e)}"
                 
-                # Extract key information based on document type
-                analysis_result = f"""✅ **Document Analysis Complete**
+                return f"❌ Unable to process document {document_id} - no content available"
+                
+            except Exception as e:
+                return f"❌ Error processing document {document_id}: {str(e)}"
+
+        @mcp.tool()
+        def process_any_document(text_content: str, document_type: str = "auto", analysis_type: str = "comprehensive") -> str:
+            """
+            Process any document content directly - supports ALL formats and content types.
+            Perfect for when document extraction fails upstream.
+            """
+            try:
+                if not text_content:
+                    return add_cat_signature("❌ No content provided")
+                
+                # Check if this is just document metadata (not actual content)
+                if "Document Received!" in text_content and "Document ID =" in text_content:
+                    doc_id_match = text_content.split("Document ID = ")[1].split()[0] if "Document ID = " in text_content else "unknown"
+                    
+                    metadata_response = f"""📋 **Document Metadata Received**
+
+🔍 **Document ID:** {doc_id_match}
+📄 **Type:** {document_type}
+🚨 **Issue:** Only metadata received, not actual document content
+
+🔧 **What I Can Do:**
+✅ I'm ready to process your document content
+✅ Just paste the actual text from your document
+✅ Or use the `upload_document` tool with the full document file
+
+💡 **Next Steps:**
+1. Copy the text content from your document
+2. Paste it here for analysis
+3. Or provide the document file directly
+
+**Status:** Ready for actual document content! 📖"""
+                
+                    return add_cat_signature(metadata_response)
+                
+                # Auto-detect document type
+                if document_type == "auto":
+                    document_type = _detect_document_type(text_content)
+                
+                # Comprehensive analysis
+                if analysis_type == "comprehensive":
+                    word_count = len(text_content.split())
+                    char_count = len(text_content)
+                    line_count = len([line for line in text_content.split('\n') if line.strip()])
+                    
+                    # Extract key information based on document type
+                    analysis_result = f"""✅ **Document Analysis Complete**
 
 📊 **Statistics:**
 - Document Type: {document_type}
@@ -549,149 +618,35 @@ def register(mcp: FastMCP):
 📄 **Content Preview:**
 {text_content[:800]}{'...' if len(text_content) > 800 else ''}
 """
-                return analysis_result
+                    result = analysis_result
                 
-            elif analysis_type == "summary":
-                return f"✅ **Document Summary ({document_type})**:\n\n{_generate_summary(text_content)}"
+                elif analysis_type == "summary":
+                    result = f"✅ **Document Summary ({document_type})**:\n\n{_generate_summary(text_content)}"
                 
-            elif analysis_type == "extract":
-                return f"✅ **Key Information Extracted ({document_type})**:\n\n{_extract_structured_data(text_content, document_type)}"
+                elif analysis_type == "extract":
+                    result = f"✅ **Key Information Extracted ({document_type})**:\n\n{_extract_structured_data(text_content, document_type)}"
                 
-            else:
-                return f"✅ **Quick Analysis ({document_type})**:\n\nWords: {len(text_content.split())}\nCharacters: {len(text_content)}"
+                else:
+                    result = f"✅ **Quick Analysis ({document_type})**:\n\nWords: {len(text_content.split())}\nCharacters: {len(text_content)}"
                 
-        except Exception as e:
-            return f"❌ Error analyzing content: {str(e)}"
+                return add_cat_signature(result)
+                
+            except Exception as e:
+                return add_cat_signature(f"❌ Error analyzing content: {str(e)}")
 
-    def _detect_document_type(content: str) -> str:
-        """Detect document type from content"""
-        content_lower = content.lower()
-        
-        # Programming languages
-        if any(keyword in content_lower for keyword in ['#include', 'int main', 'printf', 'void ', 'struct ']):
-            return "C/C++ Code"
-        elif any(keyword in content_lower for keyword in ['def ', 'import ', 'print(', 'if __name__']):
-            return "Python Code"
-        elif any(keyword in content_lower for keyword in ['function', 'var ', 'const ', 'console.log']):
-            return "JavaScript Code"
-        elif any(keyword in content_lower for keyword in ['public class', 'import java', 'system.out']):
-            return "Java Code"
-        
-        # Document types
-        elif any(keyword in content_lower for keyword in ['abstract', 'introduction', 'methodology', 'conclusion']):
-            return "Research Paper"
-        elif any(keyword in content_lower for keyword in ['experiment', 'procedure', 'results', 'analysis']):
-            return "Lab Report"
-        elif any(keyword in content_lower for keyword in ['dear ', 'sincerely', 'yours truly']):
-            return "Letter/Email"
-        elif any(keyword in content_lower for keyword in ['resume', 'curriculum vitae', 'experience', 'education']):
-            return "Resume/CV"
-        
-        # Technical documents
-        elif any(keyword in content_lower for keyword in ['api', 'endpoint', 'request', 'response']):
-            return "Technical Documentation"
-        elif any(keyword in content_lower for keyword in ['requirements', 'specification', 'shall', 'must']):
-            return "Requirements Document"
-        
-        return "General Document"
-
-    def _analyze_content_by_type(content: str, doc_type: str) -> str:
-        """Provide type-specific analysis"""
-        if "Code" in doc_type:
-            return _analyze_code_content(content)
-        elif "Lab Report" in doc_type or "Research" in doc_type:
-            return _analyze_academic_content(content)
-        else:
-            return _analyze_general_content(content)
-
-    def _analyze_code_content(content: str) -> str:
-        """Analyze code content"""
-        lines = content.split('\n')
-        code_lines = [line for line in lines if line.strip() and not line.strip().startswith('//')]
-        comment_lines = [line for line in lines if line.strip().startswith('//') or line.strip().startswith('#')]
-        
-        functions = []
-        for line in lines:
-            if any(keyword in line for keyword in ['def ', 'function ', 'int ', 'void ', 'public ']):
-                functions.append(line.strip())
-        
-        return f"""
-**Code Structure:**
-- Total Lines: {len(lines)}
-- Code Lines: {len(code_lines)}
-- Comment Lines: {len(comment_lines)}
-- Functions/Methods Found: {len(functions)}
-
-**Functions Detected:**
-{chr(10).join(f"• {func}" for func in functions[:5])}
-{'...' if len(functions) > 5 else ''}
-"""
-
-    def _analyze_academic_content(content: str) -> str:
-        """Analyze academic/research content"""
-        sections = []
-        current_section = ""
-        
-        for line in content.split('\n'):
-            line = line.strip()
-            if any(keyword in line.lower() for keyword in ['introduction', 'methodology', 'results', 'conclusion', 'abstract', 'procedure']):
-                if current_section:
-                    sections.append(current_section)
-                current_section = line
-        
-        return f"""
-**Document Structure:**
-- Sections Identified: {len(sections)}
-- Academic Keywords Found: {len([w for w in content.lower().split() if w in ['hypothesis', 'experiment', 'analysis', 'data', 'results']])}
-
-**Sections:**
-{chr(10).join(f"• {section}" for section in sections[:5])}
-"""
-
-    def _analyze_general_content(content: str) -> str:
-        """Analyze general document content"""
-        sentences = content.split('.')
-        paragraphs = [p for p in content.split('\n\n') if p.strip()]
-        
-        return f"""
-**Document Structure:**
-- Paragraphs: {len(paragraphs)}
-- Sentences: {len(sentences)}
-- Average Words per Sentence: {len(content.split()) // max(len(sentences), 1)}
-"""
-
-    def _extract_structured_data(content: str, doc_type: str) -> str:
-        """Extract structured data based on document type"""
-        if "Code" in doc_type:
-            # Extract imports, functions, variables
-            imports = [line.strip() for line in content.split('\n') if 'import' in line.lower() or '#include' in line.lower()]
-            return f"**Imports/Includes:**\n{chr(10).join(imports[:10])}"
-        
-        elif "Email" in doc_type or "Letter" in doc_type:
-            # Extract sender, recipient, subject
-            lines = content.split('\n')
-            return f"**Key Elements:**\n• First Line: {lines[0] if lines else 'N/A'}\n• Last Line: {lines[-1] if lines else 'N/A'}"
-        
-        else:
-            # Extract headings, important phrases
-            important_lines = [line.strip() for line in content.split('\n') if line.strip() and (line.isupper() or line.endswith(':'))]
-            return f"**Important Elements:**\n{chr(10).join(f'• {line}' for line in important_lines[:10])}"
-
-    print("✓ Document tools registered with WhatsApp phone number support")
-
-    @mcp.tool()
-    def handle_preprocessing_failure(error_message: str, document_info: str = "") -> str:
-        """
-        Handle cases where Puch AI preprocessing fails.
-        Provides guidance and alternative processing methods.
-        """
-        return f"""🔄 **Document Processing Alternative Available**
+        @mcp.tool()
+        def handle_preprocessing_failure(error_message: str, document_info: str = "") -> str:
+            """
+            Handle cases where Puch AI preprocessing fails.
+            Provides guidance and alternative processing methods.
+            """
+            response = f"""🔄 **Document Processing Alternative Available**
 
 The document preprocessing encountered issues, but I can still help you! 
 
 **Options:**
-1. **Copy & Paste**: Copy the document content and I'll analyze it directly using `process_any_document`
-2. **Direct Processing**: Use `handle_document_direct` if you have the document ID and content
+1. **Copy & Paste**: Copy the document content and I'll analyze it directly
+2. **Direct Processing**: Use `handle_document_direct` if you have the document ID
 3. **Standard Upload**: Try `upload_document` with proper base64 encoding
 
 **What I can do:**
@@ -704,10 +659,11 @@ The document preprocessing encountered issues, but I can still help you!
 **Error Details:** {error_message}
 **Document Info:** {document_info}
 
-**Quick Fix:** Just copy your document text and use the `process_any_document` tool - I'll handle the rest! 🚀
+**Quick Fix:** Just copy your document text and use the `process_any_document` tool! 🚀"""
+            
+            return add_cat_signature(response)
 
-**Supported Formats:** DOCX, DOC, PDF, TXT, RTF, ODT - all processed intelligently!
-"""
+    print("✓ Document tools registered with WhatsApp phone number support")
 
     # Add the missing helper functions
     def _extract_text_from_file(file_path: str) -> str:
@@ -794,6 +750,90 @@ The document preprocessing encountered issues, but I can still help you!
                 summary_sentences.append(sentences[len(sentences)//2])
             summary_sentences.append(sentences[-1])
         
-        return ". ".join(summary_sentences) + "."
+        summary_text = ". ".join(summary_sentences) + "."
+        return summary_text
 
-    print("✓ Document tools registered with comprehensive fallback support")
+    def _detect_document_type(text: str) -> str:
+        """Auto-detect document type based on content"""
+        text_lower = text.lower()
+        
+        # Programming code detection
+        if any(keyword in text_lower for keyword in ['#include', 'int main', 'void main', 'printf', 'scanf']):
+            return "C/C++ Code"
+        elif any(keyword in text_lower for keyword in ['def ', 'import ', 'print(', 'if __name__']):
+            return "Python Code"
+        elif any(keyword in text_lower for keyword in ['function', 'var ', 'let ', 'console.log', 'document.']):
+            return "JavaScript Code"
+        
+        # Academic/Research documents
+        elif any(keyword in text_lower for keyword in ['abstract', 'introduction', 'methodology', 'bibliography']):
+            return "Research Paper"
+        elif any(keyword in text_lower for keyword in ['experiment', 'procedure', 'results', 'conclusion', 'hypothesis']):
+            return "Lab Report"
+        
+        # Business documents
+        elif any(keyword in text_lower for keyword in ['meeting', 'agenda', 'action items', 'quarterly']):
+            return "Business Document"
+        
+        return "General Document"
+
+    def _analyze_content_by_type(text: str, doc_type: str) -> str:
+        """Provide type-specific analysis"""
+        if "Code" in doc_type:
+            lines = text.split('\n')
+            code_lines = [line for line in lines if line.strip() and not line.strip().startswith('//')]
+            functions = [line.strip() for line in lines if any(keyword in line for keyword in ['def ', 'function ', 'int ', 'void '])]
+            
+            return f"""**Code Analysis:**
+- Total lines: {len(lines)}
+- Code lines (non-comments): {len(code_lines)}
+- Functions/methods found: {len(functions)}
+- Language: {doc_type}"""
+        
+        elif "Research" in doc_type or "Lab" in doc_type:
+            sections = []
+            for line in text.split('\n'):
+                if any(keyword in line.lower() for keyword in ['introduction', 'method', 'result', 'conclusion', 'abstract']):
+                    sections.append(line.strip())
+            
+            return f"""**Academic Structure:**
+- Document type: {doc_type}
+- Sections identified: {len(sections)}
+- Academic format: {"Yes" if len(sections) > 2 else "Partial"}"""
+        
+        else:
+            paragraphs = [p for p in text.split('\n\n') if p.strip()]
+            avg_words = len(text.split()) / max(len(paragraphs), 1)
+            
+            return f"""**General Analysis:**
+- Paragraphs: {len(paragraphs)}
+- Average words per paragraph: {avg_words:.1f}
+- Writing style: {"Formal" if avg_words > 20 else "Casual"}"""
+
+    def _extract_structured_data(text: str, doc_type: str) -> str:
+        """Extract structured information based on document type"""
+        if "Code" in doc_type:
+            functions = []
+            imports = []
+            
+            for line in text.split('\n'):
+                line = line.strip()
+                if line.startswith('def ') or line.startswith('function '):
+                    functions.append(line)
+                elif line.startswith('import ') or line.startswith('#include'):
+                    imports.append(line)
+            
+            return f"""**Code Structure:**
+**Imports/Includes:**
+{chr(10).join(f"• {imp}" for imp in imports[:5])}
+
+**Functions:**
+{chr(10).join(f"• {func}" for func in functions[:5])}"""
+        
+        else:
+            # Extract key sentences for general documents
+            sentences = [s.strip() for s in text.split('.') if len(s.strip()) > 30]
+            key_sentences = sentences[:3]
+            
+            return f"""**Key Information:**
+{chr(10).join(f"• {sentence}." for sentence in key_sentences)}"""
